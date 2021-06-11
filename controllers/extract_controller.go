@@ -21,7 +21,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/operator-framework/operator-lib/status"
-	"github.com/prometheus/client_golang/prometheus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -41,6 +40,14 @@ type ExtractReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+}
+
+type ExtractionReconciler struct {
+	serviceAccount *corev1.ServiceAccount
+	job            *batchv1.Job
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+	Ctx            context.Context
 }
 
 //+kubebuilder:rbac:groups=primer.gitops.io,resources=extracts,verbs=get;list;watch;create;update;patch;delete
@@ -219,19 +226,10 @@ func RunExtactBatch(
 	sr *ExtractReconciler,
 	logger logr.Logger,
 ) (ctrl.Result, error) {
-	r := extractionReconciler{
-		sourceVolumeHandler: sourceVolumeHandler{
-			Ctx:                         ctx,
-			Instance:                    instance,
-			ReplicationSourceReconciler: *sr,
-			Options:                     &instance.Spec.Restic.ReplicationSourceVolumeOptions,
-		},
-		scribeMetrics: newScribeMetrics(prometheus.Labels{
-			"obj_name":      instance.Name,
-			"obj_namespace": instance.Namespace,
-			"role":          "source",
-			"method":        "restic",
-		}),
+	r := ExtractionReconciler{
+		Ctx:                         ctx,
+		Instance:                    instance,
+		ReplicationSourceReconciler: *sr,
 	}
 	l := logger.WithValues("Extraction")
 
